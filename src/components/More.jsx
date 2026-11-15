@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { Card, Sheet, Input, Btn, Seg, Chip } from './ui'
 import { COLORS, METHODS, uid, now, money, toCSV, download, today, mergeData } from '../lib/store'
 import { getClientId, setClientId } from '../lib/drive'
+import { LockSettings } from './Lock'
+import { getLock } from '../lib/lock'
 
 const EMOJIS = ['🍔', '☕', '🍕', '🛒', '🥦', '🚕', '🚌', '🚆', '✈️', '⛽', '🛵', '⚡', '📱', '💡', '🏠', '🛍️', '👕', '💊', '🏥', '📚', '🎓', '🎬', '🎮', '🎵', '🏦', '💳', '👨‍👩‍👧', '🎁', '💼', '💰', '🐶', '💇', '🏋️', '🧾', '🔧', '🙏', '📦', '🍺', '🚬', '🧴']
 
@@ -46,11 +48,12 @@ function CatEditor({ open, onClose, cat, onSave, onDelete }) {
   )
 }
 
-export default function More({ data, update, sync, onConnect, onSync, onDisconnect, section, setTheme }) {
+export default function More({ data, update, sync, onConnect, onSync, onDisconnect, section, setTheme, flash }) {
   const s = data.settings
   const [salaryOpen, setSalaryOpen] = useState(false)
   const [catsOpen, setCatsOpen] = useState(section === 'cats')
   const [driveOpen, setDriveOpen] = useState(false)
+  const [lockOpen, setLockOpen] = useState(false)
   const [editCat, setEditCat] = useState(null)
   const [form, setForm] = useState(s)
   const [cid, setCid] = useState(getClientId())
@@ -78,7 +81,10 @@ export default function More({ data, update, sync, onConnect, onSync, onDisconne
         <Row icon="🗂️" title="Categories & budgets" sub={`${liveCats.length} categories`} onClick={() => setCatsOpen(true)} />
         <Row icon="☁️" title="Google Drive sync" sub={syncSub} onClick={() => setDriveOpen(true)}
           right={<span className={`h-2.5 w-2.5 rounded-full ${sync.connected ? (sync.error ? 'bg-amber-500' : 'bg-emerald-500') : 'bg-slate-300'}`} />} />
+        <Row icon="🔒" title="App lock" sub={getLock().enabled ? (getLock().bioId ? 'Pattern + fingerprint ON' : 'Pattern ON') : 'Off – add pattern / fingerprint'} onClick={() => setLockOpen(true)}
+          right={<span className={`h-2.5 w-2.5 rounded-full ${getLock().enabled ? 'bg-emerald-500' : 'bg-slate-300'}`} />} />
       </Card>
+      <LockSettings open={lockOpen} onClose={() => setLockOpen(false)} flash={flash || (() => {})} />
 
       <Card className="p-4">
         <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Appearance</div>

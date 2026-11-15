@@ -18,7 +18,7 @@ function Stat({ label, value, sub, tone = 'slate' }) {
 
 export default function Home({ data, catMap, onEdit, onAddSalary, goto }) {
   const s = data.settings
-  const live = data.txns.filter((t) => !t.deleted)
+  const live = useMemo(() => data.txns.filter((t) => !t.deleted), [data.txns])
   const cyc = cycleRange(new Date(), s.salaryDay)
   const wk = weekRange()
   const td = today()

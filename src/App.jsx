@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Home from './components/Home'
 import History from './components/History'
-import Reports from './components/Reports'
+const Reports = lazy(() => import('./components/Reports'))
 import More from './components/More'
 import AddSheet from './components/AddSheet'
 import { loadData, saveData, mergeData, uid, now, today } from './lib/store'
 import * as drive from './lib/drive'
+import { LockScreen } from './components/Lock'
+import { getLock } from './lib/lock'
 
 const TABS = [
   { id: 'home', label: 'Home', icon: (a) => <path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" fill={a ? 'currentColor' : 'none'} /> },
@@ -26,6 +28,8 @@ export default function App() {
     connected: drive.wasConnected(), tokenOk: drive.hasValidToken(), status: 'idle', error: '',
     last: +localStorage.getItem('kharcha_last_sync') || 0,
   })
+  const [locked, setLocked] = useState(() => getLock().enabled)
+  const hiddenAt = useRef(0)
   const dataRef = useRef(data)
   const fileId = useRef(localStorage.getItem('kharcha_file_id') || null)
   const dirty = useRef(false)
@@ -33,6 +37,12 @@ export default function App() {
   const toastT = useRef()
 
   useEffect(() => { dataRef.current = data; saveData(data) }, [data])
+
+  // warm up the Reports chunk when the phone is idle, so the tab opens instantly
+  useEffect(() => {
+    const idle = window.requestIdleCallback || ((f) => setTimeout(f, 1500))
+    idle(() => import('./components/Reports'))
+  }, [])
 
   // theme
   useEffect(() => {
@@ -83,7 +93,11 @@ export default function App() {
   useEffect(() => {
     if (drive.hasValidToken()) doSync(true)
     const on = () => { if (dirty.current && drive.hasValidToken()) doSync(true) }
-    const vis = () => { if (document.visibilityState === 'visible') setSync((s) => ({ ...s, tokenOk: drive.hasValidToken() })) }
+    const vis = () => {
+      if (document.visibilityState === 'hidden') { hiddenAt.current = Date.now(); return }
+      setSync((s) => ({ ...s, tokenOk: drive.hasValidToken() }))
+      if (getLock().enabled && hiddenAt.current && Date.now() - hiddenAt.current > 30000) setLocked(true)
+    }
     window.addEventListener('online', on); document.addEventListener('visibilitychange', vis)
     return () => { window.removeEventListener('online', on); document.removeEventListener('visibilitychange', vis) }
   }, [doSync])
@@ -131,8 +145,12 @@ export default function App() {
       <main className="px-4 pb-32">
         {tab === 'home' && <Home data={data} catMap={catMap} onEdit={edit} onAddSalary={addSalary} goto={goto} />}
         {tab === 'history' && <History data={data} catMap={catMap} onEdit={edit} />}
-        {tab === 'reports' && <Reports data={data} catMap={catMap} />}
-        {tab === 'more' && <More data={data} update={update} sync={sync} onConnect={connect} onSync={() => doSync()} onDisconnect={disconnect} section={section}
+        {tab === 'reports' && (
+          <Suspense fallback={<div className="py-20 text-center text-sm text-slate-400">Loading reports…</div>}>
+            <Reports data={data} catMap={catMap} />
+          </Suspense>
+        )}
+        {tab === 'more' && <More data={data} update={update} sync={sync} onConnect={connect} onSync={() => doSync()} onDisconnect={disconnect} section={section} flash={flash}
           setTheme={(v) => update((d) => ({ ...d, settings: { ...d.settings, theme: v, updatedAt: now() } }))} />}
       </main>
 
@@ -154,6 +172,8 @@ export default function App() {
 
       <AddSheet open={sheet.open} editing={sheet.editing} presetType={sheet.type} data={data}
         onClose={() => setSheet({ open: false, editing: null, type: null })} onSave={saveTxn} onDelete={delTxn} />
+
+      {locked && <LockScreen onUnlock={() => setLocked(false)} />}
 
       {toast && (
         <div className="fixed inset-x-0 bottom-28 z-[60] flex justify-center px-6 anim-pop">
