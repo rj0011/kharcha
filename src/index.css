@@ -2,7 +2,7 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 html, body, #root { height: 100%; }
-body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", sans-serif; -webkit-tap-highlight-color: transparent; }
+body { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", sans-serif; -webkit-tap-highlight-color: transparent; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { scrollbar-width: none; }
 .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
@@ -11,3 +11,6 @@ input[type="date"]::-webkit-calendar-picker-indicator { opacity: .6; }
 .anim-pop { animation: pop .22s ease-out; }
 @keyframes fade { from { opacity: 0 } to { opacity: 1 } }
 .anim-fade { animation: fade .2s ease-out; }
+
+button { -webkit-tap-highlight-color: transparent; }
+.tabular-nums { font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }

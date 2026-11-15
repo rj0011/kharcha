@@ -2,21 +2,22 @@ import { useMemo } from 'react'
 import { Card, Gauge, Bar, Btn, Empty, useCount } from './ui'
 import TxnRow from './TxnRow'
 import InstallCard from './InstallCard'
+import Insights from './Insights'
 import { cycleRange, weekRange, today, inRange, sum, money, fmtDate, daysBetween, parseYmd } from '../lib/store'
 
-function Stat({ label, value, sub, tone = 'slate' }) {
+function Stat({ label, value, sub, icon, tone = 'slate' }) {
   const v = useCount(value)
   const c = { rose: 'text-rose-600', emerald: 'text-emerald-600', slate: 'text-slate-900 dark:text-white' }[tone]
   return (
     <Card className="p-3.5">
-      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</div>
+      <div className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500"><span>{icon}</span>{label}</div>
       <div className={`mt-1 text-lg font-extrabold tabular-nums ${c}`}>{money(v)}</div>
       {sub && <div className="text-[11px] text-slate-400">{sub}</div>}
     </Card>
   )
 }
 
-export default function Home({ data, catMap, onEdit, onAddSalary, goto }) {
+export default function Home({ data, catMap, onEdit, onDelete, onAddSalary, goto }) {
   const s = data.settings
   const live = useMemo(() => data.txns.filter((t) => !t.deleted), [data.txns])
   const cyc = cycleRange(new Date(), s.salaryDay)
@@ -92,10 +93,12 @@ export default function Home({ data, catMap, onEdit, onAddSalary, goto }) {
       )}
 
       <div className="grid grid-cols-3 gap-2">
-        <Stat label="Today" value={m.today} tone="rose" />
-        <Stat label="This week" value={m.week} />
-        <Stat label="Avg / day" value={m.avgDay} />
+        <Stat icon="☀️" label="Today" value={m.today} tone="rose" />
+        <Stat icon="🗓️" label="Week" value={m.week} />
+        <Stat icon="📊" label="Avg/day" value={m.avgDay} />
       </div>
+
+      <Insights data={data} catMap={catMap} />
 
       <Card className="p-4">
         <div className="mb-3 flex items-center justify-between">
@@ -126,7 +129,7 @@ export default function Home({ data, catMap, onEdit, onAddSalary, goto }) {
           <div className="divide-y divide-slate-100 dark:divide-slate-800">
             {recent.map((t) => (
               <div key={t.id}>
-                <TxnRow t={t} cat={catMap[t.catId]} onClick={() => onEdit(t)} />
+                <TxnRow t={t} cat={catMap[t.catId]} onClick={() => onEdit(t)} onDelete={onDelete} />
               </div>
             ))}
           </div>

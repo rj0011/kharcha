@@ -3,7 +3,7 @@ import { money } from '../lib/store'
 
 export function Card({ className = '', children, ...p }) {
   return (
-    <div className={`rounded-3xl bg-white dark:bg-slate-900 shadow-sm ring-1 ring-slate-200/70 dark:ring-slate-800 ${className}`} {...p}>
+    <div className={`rounded-3xl bg-white dark:bg-slate-900 shadow-[0_1px_2px_rgba(15,23,42,.04),0_8px_24px_-12px_rgba(15,23,42,.12)] ring-1 ring-slate-200/60 dark:ring-slate-800 ${className}`} {...p}>
       {children}
     </div>
   )

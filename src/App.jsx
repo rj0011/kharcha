@@ -58,7 +58,7 @@ export default function App() {
     return () => mq.removeEventListener('change', apply)
   }, [data.settings.theme])
 
-  const flash = (m) => { setToast(m); clearTimeout(toastT.current); toastT.current = setTimeout(() => setToast(''), 2200) }
+  const flash = (m, undo) => { setToast(undo ? { m, undo } : m); clearTimeout(toastT.current); toastT.current = setTimeout(() => setToast(''), undo ? 5000 : 2200) }
 
   // ---------- Google Drive sync ----------
   const doSync = useCallback(async (silent = false) => {
@@ -132,7 +132,7 @@ export default function App() {
     update((d) => ({ ...d, txns: d.txns.some((x) => x.id === t.id) ? d.txns.map((x) => (x.id === t.id ? t : x)) : [...d.txns, t] }))
     flash(t.type === 'expense' ? 'Expense saved 💸' : 'Income added 💰')
   }
-  const delTxn = (t) => { update((d) => ({ ...d, txns: d.txns.map((x) => (x.id === t.id ? { ...x, deleted: true, updatedAt: now() } : x)) })); flash('Deleted – restore from More → Recently deleted') }
+  const delTxn = (t) => { update((d) => ({ ...d, txns: d.txns.map((x) => (x.id === t.id ? { ...x, deleted: true, updatedAt: now() } : x)) })); flash('Entry deleted', () => restoreTxn(t)) }
   const addSalary = () => saveTxn({ id: uid(), type: 'income', amount: +data.settings.salary, catId: 'salary', method: 'Bank', date: today(), note: 'Salary', createdAt: now(), updatedAt: now() })
 
   const restoreTxn = (t) => { update((d) => ({ ...d, txns: d.txns.map((x) => (x.id === t.id ? { ...x, deleted: false, updatedAt: now() } : x)) })); flash('Entry restored ✅') }
@@ -178,9 +178,9 @@ export default function App() {
         </button>
       </header>
 
-      <main className="px-4 pb-32">
-        {tab === 'home' && <Home data={data} catMap={catMap} onEdit={edit} onAddSalary={addSalary} goto={goto} />}
-        {tab === 'history' && <History data={data} catMap={catMap} onEdit={edit} />}
+      <main key={tab} className="anim-fade px-4 pb-32">
+        {tab === 'home' && <Home data={data} catMap={catMap} onEdit={edit} onDelete={delTxn} onAddSalary={addSalary} goto={goto} />}
+        {tab === 'history' && <History data={data} catMap={catMap} onEdit={edit} onDelete={delTxn} />}
         {tab === 'reports' && (
           <Suspense fallback={<div className="py-20 text-center text-sm text-slate-400">Loading reports…</div>}>
             <Reports data={data} catMap={catMap} />
@@ -199,9 +199,10 @@ export default function App() {
               <svg viewBox="0 0 24 24" className="h-8 w-8" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
             </button>
           ) : (
-            <button key={t.id} onClick={() => goto(t.id)} className={`flex w-16 flex-col items-center gap-0.5 rounded-2xl py-1 text-[11px] font-semibold transition ${tab === t.id ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400'}`}>
-              <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">{t.icon(tab === t.id)}</svg>
+            <button key={t.id} onClick={() => goto(t.id)} className={`flex w-16 flex-col items-center gap-0.5 rounded-2xl py-1 text-[11px] font-semibold transition active:scale-95 ${tab === t.id ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400'}`}>
+              <svg viewBox="0 0 24 24" className={`h-6 w-6 transition ${tab === t.id ? '-translate-y-0.5' : ''}`} fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">{t.icon(tab === t.id)}</svg>
               {t.label}
+              <span className={`h-1 rounded-full bg-indigo-500 transition-all ${tab === t.id ? 'w-4 opacity-100' : 'w-0 opacity-0'}`} />
             </button>
           ))}
         </div>
@@ -214,7 +215,10 @@ export default function App() {
 
       {toast && (
         <div className="fixed inset-x-0 bottom-28 z-[60] flex justify-center px-6 anim-pop">
-          <div className="rounded-full bg-slate-900 px-4 py-2.5 text-sm font-medium text-white shadow-xl dark:bg-white dark:text-slate-900">{toast}</div>
+          <div className="flex items-center gap-3 rounded-full bg-slate-900 px-4 py-2.5 text-sm font-medium text-white shadow-xl dark:bg-white dark:text-slate-900">
+            {typeof toast === 'string' ? toast : toast.m}
+            {toast.undo && <button onClick={() => { toast.undo(); setToast('') }} className="rounded-full bg-white/15 px-3 py-1 text-xs font-bold text-amber-300 dark:bg-slate-900/10 dark:text-indigo-600">UNDO</button>}
+          </div>
         </div>
       )}
     </div>

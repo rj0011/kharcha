@@ -1,9 +1,12 @@
 import { useMemo, useState } from 'react'
 import { Card, Chip, Empty } from './ui'
 import TxnRow from './TxnRow'
+import Calendar from './Calendar'
+import { Seg } from './ui'
 import { today, weekRange, cycleRange, inRange, sum, money, dayLabel, METHODS } from '../lib/store'
 
-export default function History({ data, catMap, onEdit }) {
+export default function History({ data, catMap, onEdit, onDelete }) {
+  const [view, setView] = useState('list')
   const [period, setPeriod] = useState('month')
   const [q, setQ] = useState('')
   const [cat, setCat] = useState('')
@@ -40,8 +43,12 @@ export default function History({ data, catMap, onEdit }) {
   const exp = sum(list.filter((t) => t.type === 'expense'))
   const inc = sum(list.filter((t) => t.type === 'income'))
 
+  const toggle = <Seg value={view} onChange={setView} options={[{ value: 'list', label: '☰ List' }, { value: 'cal', label: '📅 Calendar' }]} />
+  if (view === 'cal') return <div className="space-y-3">{toggle}<Calendar data={data} catMap={catMap} onEdit={onEdit} onDelete={onDelete} /></div>
+
   return (
     <div className="space-y-3">
+      {toggle}
       <div className="flex gap-2 overflow-x-auto no-scrollbar">
         {[['today', 'Today'], ['week', 'This week'], ['month', 'This month'], ['all', 'All'], ['custom', 'Custom']].map(([v, l]) =>
           <Chip key={v} active={period === v} onClick={() => setPeriod(v)}>{l}</Chip>)}
@@ -73,6 +80,7 @@ export default function History({ data, catMap, onEdit }) {
         <Card className="p-3"><div className="text-[11px] font-semibold uppercase text-slate-500">Received</div><div className="text-lg font-extrabold text-emerald-600 tabular-nums">{money(inc, true)}</div></Card>
       </div>
 
+      {groups.length > 0 && <p className="px-1 text-[11px] text-slate-400">Tip: swipe an entry left to edit or delete</p>}
       {groups.length === 0 ? <Card><Empty icon="🔎" text="No entries found" /></Card> : groups.map((g) => {
         const dayExp = sum(g.items.filter((t) => t.type === 'expense'))
         return (
@@ -81,7 +89,7 @@ export default function History({ data, catMap, onEdit }) {
               <span>{dayLabel(g.date)}</span>{dayExp > 0 && <span className="tabular-nums">−{money(dayExp, true)}</span>}
             </div>
             <div className="divide-y divide-slate-100 dark:divide-slate-800">
-              {g.items.map((t) => <TxnRow key={t.id} t={t} cat={catMap[t.catId]} onClick={() => onEdit(t)} />)}
+              {g.items.map((t) => <TxnRow key={t.id} t={t} cat={catMap[t.catId]} onClick={() => onEdit(t)} onDelete={onDelete} />)}
             </div>
           </Card>
         )
