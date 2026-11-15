@@ -132,7 +132,8 @@ export default function Home({ data, catMap, onEdit, onAddSalary, goto }) {
           </div>
         )}
       </Card>
-      <p className="pb-2 text-center text-[11px] text-slate-400">{fmtDate(td, { weekday: 'long', day: 'numeric', month: 'long' })} · {parseYmd(td).getFullYear()}</p>
+      <p className="text-center text-[11px] text-slate-400">{fmtDate(td, { weekday: 'long', day: 'numeric', month: 'long' })} · {parseYmd(td).getFullYear()}</p>
+      <p className="pb-2 text-center text-xs text-slate-400">Designed by <span className="bg-gradient-to-r from-indigo-600 to-fuchsia-600 bg-clip-text font-semibold text-transparent">Manish Shukla</span></p>
     </div>
   )
 }

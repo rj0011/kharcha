@@ -99,6 +99,7 @@ export default function More({ data, update, sync, onConnect, onSync, onDisconne
         }} />
       </Card>
       <p className="text-center text-xs text-slate-400">Kharcha v1.0 · Your data stays on your phone + your own Google Drive</p>
+      <p className="pb-2 text-center text-xs text-slate-400">Designed by <span className="bg-gradient-to-r from-indigo-600 to-fuchsia-600 bg-clip-text font-semibold text-transparent">Manish Shukla</span></p>
 
       {/* Salary sheet */}
       <Sheet open={salaryOpen} onClose={() => setSalaryOpen(false)} title="Salary & balance">
