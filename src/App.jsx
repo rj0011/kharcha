@@ -27,6 +27,8 @@ export default function App() {
   const [sync, setSync] = useState({
     connected: drive.wasConnected(), tokenOk: drive.hasValidToken(), status: 'idle', error: '',
     last: +localStorage.getItem('kharcha_last_sync') || 0,
+    lastBackup: localStorage.getItem('kharcha_last_backup') || '',
+    backupScope: drive.hasBackupScope(),
   })
   const [locked, setLocked] = useState(() => getLock().enabled)
   const hiddenAt = useRef(0)
@@ -72,7 +74,9 @@ export default function App() {
       fileId.current = newId; localStorage.setItem('kharcha_file_id', newId)
       setData((cur) => mergeData(cur, merged))
       const t = Date.now(); localStorage.setItem('kharcha_last_sync', t)
-      setSync((s) => ({ ...s, status: 'idle', last: t, tokenOk: true, connected: true }))
+      setSync((s) => ({ ...s, status: 'idle', last: t, tokenOk: true, connected: true, backupScope: drive.hasBackupScope() }))
+      // automatic daily + monthly backup copy (visible "Kharcha Backups" folder)
+      drive.dailyBackup(merged, today()).then((done) => { if (done) setSync((s) => ({ ...s, lastBackup: today() })) }).catch(() => {})
       if (!silent) flash(wasDirty || remote ? 'Synced with Google Drive ✅' : 'Up to date ✅')
     } catch (e) {
       dirty.current = true
@@ -84,7 +88,7 @@ export default function App() {
   const connect = async () => {
     try {
       await drive.signIn()
-      setSync((s) => ({ ...s, connected: true, tokenOk: true, error: '' }))
+      setSync((s) => ({ ...s, connected: true, tokenOk: true, error: '', backupScope: drive.hasBackupScope() }))
       await doSync()
     } catch (e) { flash('⚠️ ' + e.message) }
   }
@@ -118,13 +122,35 @@ export default function App() {
     update((d) => ({ ...d, txns: d.txns.some((x) => x.id === t.id) ? d.txns.map((x) => (x.id === t.id ? t : x)) : [...d.txns, t] }))
     flash(t.type === 'expense' ? 'Expense saved 💸' : 'Income added 💰')
   }
-  const delTxn = (t) => { update((d) => ({ ...d, txns: d.txns.map((x) => (x.id === t.id ? { ...x, deleted: true, updatedAt: now() } : x)) })); flash('Deleted') }
+  const delTxn = (t) => { update((d) => ({ ...d, txns: d.txns.map((x) => (x.id === t.id ? { ...x, deleted: true, updatedAt: now() } : x)) })); flash('Deleted – restore from More → Recently deleted') }
   const addSalary = () => saveTxn({ id: uid(), type: 'income', amount: +data.settings.salary, catId: 'salary', method: 'Bank', date: today(), note: 'Salary', createdAt: now(), updatedAt: now() })
+
+  const restoreTxn = (t) => { update((d) => ({ ...d, txns: d.txns.map((x) => (x.id === t.id ? { ...x, deleted: false, updatedAt: now() } : x)) })); flash('Entry restored ✅') }
+  const backupNow = async (name) => {
+    if (!drive.hasValidToken() || !drive.hasBackupScope()) throw new Error('Connect Google Drive first (tap Reconnect)')
+    await drive.writeBackup(name || `kharcha-manual-${today()}-${Date.now().toString().slice(-5)}.json`, dataRef.current)
+    localStorage.setItem('kharcha_last_backup', today()); setSync((s) => ({ ...s, lastBackup: today() }))
+  }
+  const clearAll = async () => {
+    try { await backupNow(`kharcha-before-clear-${today()}-${Date.now().toString().slice(-5)}.json`); flash('Backup saved in Drive, clearing…') }
+    catch {
+      const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(dataRef.current)], { type: 'application/json' }))
+      a.download = `kharcha-before-clear-${today()}.json`; a.click(); flash('Backup file downloaded, clearing…')
+    }
+    update((d) => ({ ...d, txns: d.txns.map((t) => (t.deleted ? t : { ...t, deleted: true, updatedAt: now() })) }))
+  }
+  const restoreBackup = async (id) => {
+    const b = await drive.readBackup(id)
+    const t = now()
+    const bump = (arr = []) => arr.filter((x) => !x.deleted).map((x) => ({ ...x, updatedAt: t }))
+    update((d) => mergeData(d, { settings: d.settings, categories: bump(b.categories), txns: bump(b.txns) }))
+    flash('Backup restored ✅')
+  }
 
   const catMap = useMemo(() => Object.fromEntries(data.categories.map((c) => [c.id, c])), [data.categories])
   const goto = (t, sec = null) => { setTab(t); setSection(sec); window.scrollTo({ top: 0 }) }
   const edit = (t) => setSheet({ open: true, editing: t, type: null })
-  const pending = sync.connected && (!sync.tokenOk || sync.error)
+  const pending = sync.connected && (!sync.tokenOk || sync.error || !sync.backupScope)
 
   return (
     <div className="mx-auto min-h-full max-w-md bg-slate-100 dark:bg-slate-950">
@@ -133,7 +159,7 @@ export default function App() {
           <img src="./pwa-192.png" alt="" className="h-8 w-8 rounded-xl" />
           <h1 className="text-xl font-extrabold tracking-tight text-slate-900 dark:text-white">{TITLES[tab]}</h1>
         </div>
-        <button onClick={() => (sync.connected ? (sync.tokenOk ? doSync() : connect()) : goto('more'))}
+        <button onClick={() => (sync.connected ? (sync.tokenOk && sync.backupScope ? doSync() : connect()) : goto('more'))}
           className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold ring-1 ${pending ? 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30' : sync.connected ? 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30' : 'bg-white text-slate-500 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800'}`}>
           <svg viewBox="0 0 24 24" className={`h-4 w-4 ${sync.status === 'syncing' ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
             {sync.status === 'syncing' ? <path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5" /> : <path d="M7 18a4.5 4.5 0 0 1-.6-9A6 6 0 0 1 18 8a4 4 0 0 1 0 8H7z" />}
@@ -151,6 +177,7 @@ export default function App() {
           </Suspense>
         )}
         {tab === 'more' && <More data={data} update={update} sync={sync} onConnect={connect} onSync={() => doSync()} onDisconnect={disconnect} section={section} flash={flash}
+          onBackupNow={backupNow} onListBackups={drive.listBackups} onRestoreBackup={restoreBackup} onClearAll={clearAll} onRestoreTxn={restoreTxn}
           setTheme={(v) => update((d) => ({ ...d, settings: { ...d.settings, theme: v, updatedAt: now() } }))} />}
       </main>
 

@@ -1,7 +1,9 @@
 // ---------- Google Drive (appDataFolder) as database ----------
 // Docs: https://developers.google.com/drive/api/guides/appdata
 //       https://developers.google.com/identity/oauth2/web/guides/use-token-model
-const SCOPE = 'https://www.googleapis.com/auth/drive.appdata'
+// drive.appdata = hidden app database file, drive.file = only files this app creates (Kharcha Backups folder)
+const SCOPE = 'https://www.googleapis.com/auth/drive.appdata https://www.googleapis.com/auth/drive.file'
+const SCOPE_VER = '2'
 const FILE_NAME = 'kharcha-data.json'
 const TOKEN_KEY = 'kharcha_gtoken'
 const CID_KEY = 'kharcha_client_id'
@@ -18,6 +20,7 @@ function readToken() {
 }
 export const hasValidToken = () => !!readToken()
 export const wasConnected = () => !!localStorage.getItem(TOKEN_KEY)
+export const hasBackupScope = () => localStorage.getItem('kharcha_scope_ver') === SCOPE_VER
 export function signOut() {
   const t = readToken()
   if (t && window.google?.accounts?.oauth2) window.google.accounts.oauth2.revoke(t, () => {})
@@ -48,11 +51,12 @@ export async function signIn() {
       callback: (r) => {
         if (r.error) return reject(new Error(r.error_description || r.error))
         localStorage.setItem(TOKEN_KEY, JSON.stringify({ token: r.access_token, exp: Date.now() + (r.expires_in || 3600) * 1000 }))
+        if ((r.scope || '').includes('drive.file')) localStorage.setItem('kharcha_scope_ver', SCOPE_VER)
         resolve(r.access_token)
       },
       error_callback: (e) => reject(new Error(e?.message || 'Login popup band ho gaya')),
     })
-    tc.requestAccessToken({ prompt: wasConnected() ? '' : 'consent' })
+    tc.requestAccessToken({ prompt: wasConnected() && hasBackupScope() ? '' : 'consent' })
   })
 }
 
@@ -94,4 +98,71 @@ export async function push(data, id) {
     method: 'POST', headers: { 'Content-Type': `multipart/related; boundary=${boundary}` }, body: multipart,
   })
   return (await r.json()).id
+}
+
+// ---------- Backups in a visible "Kharcha Backups" folder of My Drive ----------
+const FOLDER = 'Kharcha Backups'
+const FOLDER_KEY = 'kharcha_backup_folder'
+
+async function ensureFolder() {
+  const cached = localStorage.getItem(FOLDER_KEY)
+  if (cached) {
+    const r = await fetch(`https://www.googleapis.com/drive/v3/files/${cached}?fields=id,trashed`, { headers: { Authorization: `Bearer ${readToken()}` } })
+    if (r.ok && !(await r.json()).trashed) return cached
+  }
+  const q = encodeURIComponent(`name='${FOLDER}' and mimeType='application/vnd.google-apps.folder' and trashed=false`)
+  const found = (await (await api(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id)`)).json()).files?.[0]
+  let id = found?.id
+  if (!id) {
+    const r = await api('https://www.googleapis.com/drive/v3/files?fields=id', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: FOLDER, mimeType: 'application/vnd.google-apps.folder' }),
+    })
+    id = (await r.json()).id
+  }
+  localStorage.setItem(FOLDER_KEY, id)
+  return id
+}
+
+export async function listBackups() {
+  const folder = await ensureFolder()
+  const q = encodeURIComponent(`'${folder}' in parents and trashed=false`)
+  const r = await api(`https://www.googleapis.com/drive/v3/files?q=${q}&orderBy=name desc&pageSize=200&fields=files(id,name,size,modifiedTime)`)
+  return (await r.json()).files || []
+}
+
+// create or overwrite a backup file by name
+export async function writeBackup(name, data) {
+  const folder = await ensureFolder()
+  const files = await listBackups()
+  const existing = files.find((f) => f.name === name)
+  if (existing) return push(data, existing.id)
+  const boundary = 'kbk' + Date.now()
+  const meta = { name, parents: [folder], mimeType: 'application/json' }
+  const body = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(data)}\r\n--${boundary}--`
+  const r = await api('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', {
+    method: 'POST', headers: { 'Content-Type': `multipart/related; boundary=${boundary}` }, body,
+  })
+  return (await r.json()).id
+}
+
+export async function readBackup(id) {
+  return (await api(`https://www.googleapis.com/drive/v3/files/${id}?alt=media`)).json()
+}
+
+// Daily copy (last 30 kept) + one monthly copy kept forever
+export async function dailyBackup(data, today) {
+  if (!hasBackupScope()) return false
+  if (localStorage.getItem('kharcha_last_backup') === today) return false
+  await writeBackup(`kharcha-daily-${today}.json`, data)
+  const month = today.slice(0, 7)
+  const files = await listBackups()
+  if (!files.some((f) => f.name === `kharcha-monthly-${month}.json`)) await writeBackup(`kharcha-monthly-${month}.json`, data)
+  const cutoff = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)
+  for (const f of files) {
+    const m = f.name.match(/^kharcha-daily-(\d{4}-\d{2}-\d{2})\.json$/)
+    if (m && m[1] < cutoff) await api(`https://www.googleapis.com/drive/v3/files/${f.id}`, { method: 'DELETE' }).catch(() => {})
+  }
+  localStorage.setItem('kharcha_last_backup', today)
+  return true
 }

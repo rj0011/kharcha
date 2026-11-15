@@ -99,7 +99,7 @@ export default function AddSheet({ open, onClose, data, editing, onSave, onDelet
       </div>
 
       <div className="mt-6 flex gap-2">
-        {editing && <Btn variant="danger" onClick={() => { if (confirm('Delete this entry?')) { onDelete(editing); onClose() } }}>Delete</Btn>}
+        {editing && <Btn variant="danger" onClick={() => { if (confirm('Delete this entry?\n(You can restore it for 30 days from More → Recently deleted)')) { onDelete(editing); onClose() } }}>Delete</Btn>}
         <Btn className="flex-1" disabled={!valid} onClick={save}>
           {valid ? `Save ${money(+amount, true)}` : 'Enter amount & category'}
         </Btn>

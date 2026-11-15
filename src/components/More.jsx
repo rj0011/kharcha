@@ -48,12 +48,19 @@ function CatEditor({ open, onClose, cat, onSave, onDelete }) {
   )
 }
 
-export default function More({ data, update, sync, onConnect, onSync, onDisconnect, section, setTheme, flash }) {
+export default function More({ data, update, sync, onConnect, onSync, onDisconnect, section, setTheme, flash, onBackupNow, onListBackups, onRestoreBackup, onClearAll, onRestoreTxn }) {
   const s = data.settings
   const [salaryOpen, setSalaryOpen] = useState(false)
   const [catsOpen, setCatsOpen] = useState(section === 'cats')
   const [driveOpen, setDriveOpen] = useState(false)
   const [lockOpen, setLockOpen] = useState(false)
+  const [binOpen, setBinOpen] = useState(false)
+  const [backups, setBackups] = useState(null)
+  const [busy, setBusy] = useState('')
+  const toast = flash || (() => {})
+  const run = async (label, fn) => { setBusy(label); try { await fn() } catch (e) { toast('⚠️ ' + e.message) } finally { setBusy('') } }
+  const openBackups = () => run('list', async () => setBackups(await onListBackups()))
+  const deleted = data.txns.filter((t) => t.deleted && t.updatedAt > Date.now() - 30 * 86400000).sort((a, b) => b.updatedAt - a.updatedAt)
   const [editCat, setEditCat] = useState(null)
   const [form, setForm] = useState(s)
   const [cid, setCid] = useState(getClientId())
@@ -84,6 +91,25 @@ export default function More({ data, update, sync, onConnect, onSync, onDisconne
         <Row icon="🔒" title="App lock" sub={getLock().enabled ? (getLock().bioId ? 'Pattern + fingerprint ON' : 'Pattern ON') : 'Off – add pattern / fingerprint'} onClick={() => setLockOpen(true)}
           right={<span className={`h-2.5 w-2.5 rounded-full ${getLock().enabled ? 'bg-emerald-500' : 'bg-slate-300'}`} />} />
       </Card>
+      <Card className="overflow-hidden">
+        <Row icon="🗑️" title="Recently deleted" sub={deleted.length ? `${deleted.length} entries · restore within 30 days` : 'Nothing deleted in last 30 days'} onClick={() => setBinOpen(true)} />
+      </Card>
+      <Sheet open={binOpen} onClose={() => setBinOpen(false)} title="Recently deleted">
+        {deleted.length === 0 ? <p className="py-8 text-center text-sm text-slate-400">Nothing here 🎉</p> : (
+          <div className="divide-y divide-slate-100 dark:divide-slate-800">
+            {deleted.map((t) => (
+              <div key={t.id} className="flex items-center gap-3 py-3">
+                <span className="text-xl">{data.categories.find((c) => c.id === t.catId)?.icon || '📦'}</span>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">{t.note || data.categories.find((c) => c.id === t.catId)?.name} · {money(t.amount, true)}</div>
+                  <div className="text-xs text-slate-500">{t.date} · deleted {new Date(t.updatedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</div>
+                </div>
+                <Btn variant="soft" className="py-1.5 text-sm" onClick={() => onRestoreTxn(t)}>Restore</Btn>
+              </div>
+            ))}
+          </div>
+        )}
+      </Sheet>
       <LockSettings open={lockOpen} onClose={() => setLockOpen(false)} flash={flash || (() => {})} />
 
       <Card className="p-4">
@@ -100,8 +126,8 @@ export default function More({ data, update, sync, onConnect, onSync, onDisconne
         <Row icon="💾" title="Download backup (JSON)" sub="Full offline backup file" onClick={() => download(`kharcha-backup-${today()}.json`, JSON.stringify(data), 'application/json')} />
         <Row icon="📥" title="Restore backup" sub="Merge a JSON backup file" onClick={() => fileRef.current?.click()} />
         <input ref={fileRef} type="file" accept=".json,application/json" className="hidden" onChange={importJson} />
-        <Row icon="🧹" title="Clear all entries" sub="Deletes every entry (also from Drive on next sync)" onClick={() => {
-          if (confirm('Delete ALL entries? This cannot be undone.') && confirm('Are you sure?')) update((d) => ({ ...d, txns: d.txns.map((t) => ({ ...t, deleted: true, updatedAt: now() })) }))
+        <Row icon="🧹" title="Clear all entries" sub="Backup is saved first, then entries are cleared" onClick={() => {
+          if (confirm('Delete ALL entries?\nA backup copy is saved first (Drive or downloaded file).') && confirm('Are you sure?')) onClearAll()
         }} />
       </Card>
       <p className="text-center text-xs text-slate-400">Kharcha v1.0 · Your data stays on your phone + your own Google Drive</p>
@@ -154,9 +180,22 @@ export default function More({ data, update, sync, onConnect, onSync, onDisconne
             </>
           )}
           <div className="rounded-2xl bg-slate-100 p-3 text-sm dark:bg-slate-800 dark:text-slate-200">Status: <b>{syncSub}</b></div>
-          {!sync.connected || !sync.tokenOk
+          {sync.connected && sync.tokenOk && !sync.backupScope && (
+            <div className="rounded-2xl bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-500/15 dark:text-amber-200">New: automatic backups need one-time permission. Tap <b>Reconnect</b> and allow.</div>
+          )}
+          {!sync.connected || !sync.tokenOk || !sync.backupScope
             ? <Btn className="w-full" onClick={onConnect}>🔗 {sync.connected ? 'Reconnect' : 'Connect'} Google Drive</Btn>
             : <Btn className="w-full" disabled={sync.status === 'syncing'} onClick={onSync}>🔄 Sync now</Btn>}
+          {sync.connected && sync.backupScope && (
+            <div className="space-y-2 rounded-2xl bg-emerald-50 p-3 dark:bg-emerald-500/10">
+              <div className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">🛡️ Auto backup ON</div>
+              <div className="text-xs text-emerald-700 dark:text-emerald-300/80">Daily copy (last 30 days) + monthly copy (kept forever) in the <b>Kharcha Backups</b> folder of your Google Drive. Last backup: <b>{sync.lastBackup || '—'}</b></div>
+              <div className="grid grid-cols-2 gap-2">
+                <Btn variant="soft" className="py-2 text-sm" disabled={!!busy} onClick={() => run('backup', async () => { await onBackupNow(); toast('Backup saved ✅') })}>{busy === 'backup' ? 'Saving…' : '💾 Backup now'}</Btn>
+                <Btn variant="soft" className="py-2 text-sm" disabled={!!busy} onClick={openBackups}>{busy === 'list' ? 'Loading…' : '♻️ Restore'}</Btn>
+              </div>
+            </div>
+          )}
           {sync.connected && (
             <div className="flex items-center justify-between rounded-2xl bg-slate-100 px-4 py-3 text-sm dark:bg-slate-800 dark:text-slate-200">
               <span>Auto-sync after every change</span>
@@ -164,6 +203,23 @@ export default function More({ data, update, sync, onConnect, onSync, onDisconne
             </div>
           )}
           {sync.connected && <Btn variant="danger" className="w-full" onClick={onDisconnect}>Disconnect</Btn>}
+        </div>
+      </Sheet>
+
+      <Sheet open={!!backups} onClose={() => setBackups(null)} title="Restore from backup">
+        <p className="mb-3 text-xs text-slate-500">Restoring brings back every entry from that backup (including ones deleted later). Entries added after the backup are kept.</p>
+        {backups?.length === 0 && <p className="py-6 text-center text-sm text-slate-400">No backups yet</p>}
+        <div className="divide-y divide-slate-100 dark:divide-slate-800">
+          {backups?.map((f) => (
+            <div key={f.id} className="flex items-center gap-3 py-3">
+              <span className="text-xl">{f.name.includes('monthly') ? '📅' : f.name.includes('before-clear') ? '🧹' : '💾'}</span>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">{f.name.replace('kharcha-', '').replace('.json', '')}</div>
+                <div className="text-xs text-slate-500">{new Date(f.modifiedTime).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })} · {Math.round((+f.size || 0) / 1024)} KB</div>
+              </div>
+              <Btn variant="soft" className="py-1.5 text-sm" disabled={!!busy} onClick={() => { if (confirm('Restore this backup?')) run('restore', async () => { await onRestoreBackup(f.id); setBackups(null) }) }}>Restore</Btn>
+            </div>
+          ))}
         </div>
       </Sheet>
     </div>
