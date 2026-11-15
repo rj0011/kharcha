@@ -96,17 +96,24 @@ export default function App() {
 
   useEffect(() => {
     const auth = window.__authResult
-    if (auth?.error) flash('⚠️ ' + auth.error)
+    if (auth?.error) { flash('⚠️ ' + auth.error); setSync((s) => ({ ...s, error: auth.error })) }
     if (auth?.ok) { flash('Google Drive connected ✅'); setSync((s) => ({ ...s, connected: true, tokenOk: true, backupScope: drive.hasBackupScope() })) }
     if (drive.hasValidToken()) doSync(!auth?.ok)
     const on = () => { if (dirty.current && drive.hasValidToken()) doSync(true) }
     const vis = () => {
       if (document.visibilityState === 'hidden') { hiddenAt.current = Date.now(); return }
-      setSync((s) => ({ ...s, tokenOk: drive.hasValidToken() }))
+      setSync((s) => ({ ...s, tokenOk: drive.hasValidToken(), connected: drive.wasConnected(), backupScope: drive.hasBackupScope() }))
       if (getLock().enabled && hiddenAt.current && Date.now() - hiddenAt.current > 30000) setLocked(true)
     }
-    window.addEventListener('online', on); document.addEventListener('visibilitychange', vis)
-    return () => { window.removeEventListener('online', on); document.removeEventListener('visibilitychange', vis) }
+    // login finished in another tab/window (e.g. Chrome) -> pick up the new token here too
+    const st = (e) => {
+      if (e.key === 'kharcha_gtoken' && drive.hasValidToken()) {
+        setSync((s) => ({ ...s, connected: true, tokenOk: true, error: '', backupScope: drive.hasBackupScope() }))
+        doSync()
+      }
+    }
+    window.addEventListener('online', on); document.addEventListener('visibilitychange', vis); window.addEventListener('storage', st)
+    return () => { window.removeEventListener('online', on); document.removeEventListener('visibilitychange', vis); window.removeEventListener('storage', st) }
   }, [doSync])
 
   // user change => save locally + schedule auto sync

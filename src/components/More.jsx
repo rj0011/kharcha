@@ -130,7 +130,7 @@ export default function More({ data, update, sync, onConnect, onSync, onDisconne
           if (confirm('Delete ALL entries?\nA backup copy is saved first (Drive or downloaded file).') && confirm('Are you sure?')) onClearAll()
         }} />
       </Card>
-      <p className="text-center text-xs text-slate-400">Kharcha v1.0 · Your data stays on your phone + your own Google Drive</p>
+      <p className="text-center text-xs text-slate-400">Kharcha v{window.APP_VERSION || '1.0'} · Your data stays on your phone + your own Google Drive</p>
       <p className="pb-2 text-center text-xs text-slate-400">Designed by <span className="bg-gradient-to-r from-indigo-600 to-fuchsia-600 bg-clip-text font-semibold text-transparent">Manish Shukla</span></p>
 
       {/* Salary sheet */}
@@ -179,7 +179,7 @@ export default function More({ data, update, sync, onConnect, onSync, onDisconne
               <Btn variant="ghost" className="w-full text-sm" onClick={() => { setClientId(cid); alert('Saved ✅ Now tap Connect') }}>Save Client ID</Btn>
             </>
           )}
-          <div className="rounded-2xl bg-slate-100 p-3 text-sm dark:bg-slate-800 dark:text-slate-200">Status: <b>{syncSub}</b></div>
+          <div className="rounded-2xl bg-slate-100 p-3 text-sm dark:bg-slate-800 dark:text-slate-200">Status: <b>{syncSub}</b>{sync.error && !sync.connected && <div className="mt-1 text-xs text-rose-600">⚠️ {sync.error}</div>}<div className="mt-1 text-[11px] text-slate-400">App version {window.APP_VERSION || '1.0'}</div></div>
           {sync.connected && sync.tokenOk && !sync.backupScope && (
             <div className="rounded-2xl bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-500/15 dark:text-amber-200">New: automatic backups need one-time permission. Tap <b>Reconnect</b> and allow.</div>
           )}
