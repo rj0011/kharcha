@@ -39,10 +39,42 @@ function waitForGis(ms = 8000) {
   })
 }
 
-// Must be called from a user tap (popup)
+// Phone / installed app: popups are unreliable -> use full-page redirect login
+const useRedirect = () =>
+  window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true || /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent)
+const redirectUri = () => location.origin + location.pathname
+
+function signInRedirect(client_id) {
+  const state = Math.random().toString(36).slice(2)
+  localStorage.setItem('kharcha_oauth_state', state)
+  const p = new URLSearchParams({
+    client_id, redirect_uri: redirectUri(), response_type: 'token', scope: SCOPE,
+    include_granted_scopes: 'true', state,
+  })
+  if (!(wasConnected() && hasBackupScope())) p.set('prompt', 'consent')
+  location.href = 'https://accounts.google.com/o/oauth2/v2/auth?' + p.toString()
+  return new Promise(() => {}) // page is navigating away
+}
+
+// Call once at app start: picks up the token Google sends back in the URL (#access_token=...)
+export function handleRedirect() {
+  if (!location.hash || !/access_token=|error=/.test(location.hash)) return null
+  const h = new URLSearchParams(location.hash.slice(1))
+  history.replaceState(null, '', location.pathname + location.search)
+  const expected = localStorage.getItem('kharcha_oauth_state')
+  localStorage.removeItem('kharcha_oauth_state')
+  if (h.get('error')) return { error: h.get('error') === 'access_denied' ? 'Google permission was not allowed' : h.get('error') }
+  if (expected && h.get('state') !== expected) return { error: 'Login check failed – try again' }
+  localStorage.setItem(TOKEN_KEY, JSON.stringify({ token: h.get('access_token'), exp: Date.now() + (+h.get('expires_in') || 3600) * 1000 }))
+  if ((h.get('scope') || '').includes('drive.file')) localStorage.setItem('kharcha_scope_ver', SCOPE_VER)
+  return { ok: true }
+}
+
+// Must be called from a user tap (popup on computer, redirect on phone)
 export async function signIn() {
   const client_id = getClientId()
   if (!client_id) throw new Error('Pehle Settings me Google Client ID daalein.')
+  if (useRedirect()) return signInRedirect(client_id)
   await waitForGis()
   return new Promise((resolve, reject) => {
     const tc = window.google.accounts.oauth2.initTokenClient({

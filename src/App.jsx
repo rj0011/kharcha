@@ -95,7 +95,10 @@ export default function App() {
   const disconnect = () => { drive.signOut(); localStorage.removeItem('kharcha_file_id'); setSync((s) => ({ ...s, connected: false, tokenOk: false })); flash('Disconnected') }
 
   useEffect(() => {
-    if (drive.hasValidToken()) doSync(true)
+    const auth = window.__authResult
+    if (auth?.error) flash('⚠️ ' + auth.error)
+    if (auth?.ok) { flash('Google Drive connected ✅'); setSync((s) => ({ ...s, connected: true, tokenOk: true, backupScope: drive.hasBackupScope() })) }
+    if (drive.hasValidToken()) doSync(!auth?.ok)
     const on = () => { if (dirty.current && drive.hasValidToken()) doSync(true) }
     const vis = () => {
       if (document.visibilityState === 'hidden') { hiddenAt.current = Date.now(); return }
@@ -159,7 +162,7 @@ export default function App() {
           <img src="./pwa-192.png" alt="" className="h-8 w-8 rounded-xl" />
           <h1 className="text-xl font-extrabold tracking-tight text-slate-900 dark:text-white">{TITLES[tab]}</h1>
         </div>
-        <button onClick={() => (sync.connected ? (sync.tokenOk && sync.backupScope ? doSync() : connect()) : goto('more'))}
+        <button onClick={() => (sync.connected && sync.tokenOk && sync.backupScope ? doSync() : connect())}
           className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold ring-1 ${pending ? 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30' : sync.connected ? 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30' : 'bg-white text-slate-500 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800'}`}>
           <svg viewBox="0 0 24 24" className={`h-4 w-4 ${sync.status === 'syncing' ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
             {sync.status === 'syncing' ? <path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5" /> : <path d="M7 18a4.5 4.5 0 0 1-.6-9A6 6 0 0 1 18 8a4 4 0 0 1 0 8H7z" />}
