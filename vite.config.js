@@ -14,6 +14,7 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['icon.svg', 'apple-touch-icon.png', 'favicon-64.png'],
       manifest: {
+        id: './',
         name: 'Kharcha – Daily Expense Tracker',
         short_name: 'Kharcha',
         description: 'Daily expenses, salary balance & reports. Data saved in your Google Drive.',

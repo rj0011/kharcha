@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { Card, Gauge, Bar, Btn, Empty, useCount } from './ui'
 import TxnRow from './TxnRow'
+import InstallCard from './InstallCard'
 import { cycleRange, weekRange, today, inRange, sum, money, fmtDate, daysBetween, parseYmd } from '../lib/store'
 
 function Stat({ label, value, sub, tone = 'slate' }) {
@@ -53,6 +54,7 @@ export default function Home({ data, catMap, onEdit, onAddSalary, goto }) {
 
   return (
     <div className="space-y-4">
+      <InstallCard />
       <div className="relative overflow-hidden rounded-[28px] bg-gradient-to-br from-indigo-600 via-violet-600 to-fuchsia-600 p-5 pb-4 text-white shadow-xl shadow-indigo-500/30">
         <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-white/10" />
         <div className="pointer-events-none absolute -bottom-16 -left-10 h-44 w-44 rounded-full bg-white/10" />
