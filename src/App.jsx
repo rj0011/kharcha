@@ -8,6 +8,16 @@ import { loadData, saveData, mergeData, uid, now, today } from './lib/store'
 import * as drive from './lib/drive'
 import { LockScreen } from './components/Lock'
 import { getLock } from './lib/lock'
+import { setLang, t, catName } from './lib/i18n'
+const tl = t
+import { celebrate } from './lib/confetti'
+import { useBadges } from './features/Streak'
+import { getPhoto } from './lib/photos'
+const BillsPage = lazy(() => import('./features/Bills'))
+const UdhaarPage = lazy(() => import('./features/Udhaar'))
+const ShoppingPage = lazy(() => import('./features/Shopping'))
+const ReportPage = lazy(() => import('./features/Report'))
+const BadgesSheet = lazy(() => import('./features/Streak').then((m) => ({ default: m.BadgesSheet })))
 
 const TABS = [
   { id: 'home', label: 'Home', icon: (a) => <path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" fill={a ? 'currentColor' : 'none'} /> },
@@ -16,10 +26,12 @@ const TABS = [
   { id: 'reports', label: 'Reports', icon: () => <><path d="M12 3a9 9 0 1 0 9 9h-9z" /><path d="M15 3.5A9 9 0 0 1 20.5 9H15z" /></> },
   { id: 'more', label: 'More', icon: () => <><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" /></> },
 ]
-const TITLES = { home: 'Kharcha', history: 'History', reports: 'Reports', more: 'Settings' }
+const TITLES = { home: 'Kharcha', history: 'History', reports: 'Reports', more: 'Settings' } // translated with t()
 
 export default function App() {
   const [data, setData] = useState(loadData)
+  setLang(data.settings.lang)
+  const [page, setPage] = useState(null) // bills | udhaar | shopping | report | badges
   const [tab, setTab] = useState('home')
   const [section, setSection] = useState(null)
   const [sheet, setSheet] = useState({ open: false, editing: null, type: null })
@@ -75,6 +87,17 @@ export default function App() {
       setData((cur) => mergeData(cur, merged))
       const t = Date.now(); localStorage.setItem('kharcha_last_sync', t)
       setSync((s) => ({ ...s, status: 'idle', last: t, tokenOk: true, connected: true, backupScope: drive.hasBackupScope() }))
+      // upload bill photos not yet on Drive
+      ;(async () => {
+        for (const x of dataRef.current.txns.filter((x) => x.photo && !x.photoDrive && !x.deleted).slice(0, 5)) {
+          try {
+            const blob = await getPhoto(x.photo); if (!blob) continue
+            const id = await drive.uploadPhoto(blob, `bill-${x.date}-${x.id}.jpg`)
+            setData((d) => ({ ...d, txns: d.txns.map((y) => (y.id === x.id ? { ...y, photoDrive: id, updatedAt: now() } : y)) }))
+            dirty.current = true
+          } catch { break }
+        }
+      })()
       // automatic daily + monthly backup copy (visible "Kharcha Backups" folder)
       drive.dailyBackup(merged, today()).then((done) => { if (done) setSync((s) => ({ ...s, lastBackup: today() })) }).catch(() => {})
       if (!silent) flash(wasDirty || remote ? 'Synced with Google Drive ✅' : 'Up to date ✅')
@@ -128,10 +151,13 @@ export default function App() {
   }, [doSync])
 
   // ---------- entries ----------
-  const saveTxn = (t) => {
-    update((d) => ({ ...d, txns: d.txns.some((x) => x.id === t.id) ? d.txns.map((x) => (x.id === t.id ? t : x)) : [...d.txns, t] }))
-    flash(t.type === 'expense' ? 'Expense saved 💸' : 'Income added 💰')
+  const saveTxn = (tx, silent) => {
+    update((d) => ({ ...d, txns: d.txns.some((x) => x.id === tx.id) ? d.txns.map((x) => (x.id === tx.id ? tx : x)) : [...d.txns, tx] }))
+    if (tx.catId === 'salary') celebrate()
+    if (!silent) flash(tx.type === 'expense' ? 'Expense saved 💸' : 'Income added 💰')
   }
+  const undoAdd = (tx) => update((d) => ({ ...d, txns: d.txns.map((x) => (x.id === tx.id ? { ...x, deleted: true, updatedAt: now() } : x)) }))
+  const saveFav = (f) => update((d) => ({ ...d, favs: [...(d.favs || []), f] }))
   const delTxn = (t) => { update((d) => ({ ...d, txns: d.txns.map((x) => (x.id === t.id ? { ...x, deleted: true, updatedAt: now() } : x)) })); flash('Entry deleted', () => restoreTxn(t)) }
   const addSalary = () => saveTxn({ id: uid(), type: 'income', amount: +data.settings.salary, catId: 'salary', method: 'Bank', date: today(), note: 'Salary', createdAt: now(), updatedAt: now() })
 
@@ -157,7 +183,11 @@ export default function App() {
     flash('Backup restored ✅')
   }
 
-  const catMap = useMemo(() => Object.fromEntries(data.categories.map((c) => [c.id, c])), [data.categories])
+  const lang = data.settings.lang
+  const viewData = useMemo(() => ({ ...data, categories: data.categories.map((c) => ({ ...c, name: catName(c) })) }), [data, lang]) // eslint-disable-line react-hooks/exhaustive-deps
+  const catMap = useMemo(() => Object.fromEntries(viewData.categories.map((c) => [c.id, c])), [viewData.categories])
+  const { streak, earned } = useBadges(data, flash)
+  const feat = { data: viewData, catMap, update, addTxn: saveTxn, flash, onClose: () => setPage(null) }
   const goto = (t, sec = null) => { setTab(t); setSection(sec); window.scrollTo({ top: 0 }) }
   const edit = (t) => setSheet({ open: true, editing: t, type: null })
   const pending = sync.connected && (!sync.tokenOk || sync.error || !sync.backupScope)
@@ -167,28 +197,31 @@ export default function App() {
       <header className="sticky top-0 z-30 flex items-center justify-between bg-slate-100/85 px-5 pb-3 pt-[max(14px,env(safe-area-inset-top))] backdrop-blur dark:bg-slate-950/85">
         <div className="flex items-center gap-2">
           <img src="./pwa-192.png" alt="" className="h-8 w-8 rounded-xl" />
-          <h1 className="text-xl font-extrabold tracking-tight text-slate-900 dark:text-white">{TITLES[tab]}</h1>
+          <h1 className="text-xl font-extrabold tracking-tight text-slate-900 dark:text-white">{t(TITLES[tab])}</h1>
         </div>
         <button onClick={() => (sync.connected && sync.tokenOk && sync.backupScope ? doSync() : connect())}
           className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold ring-1 ${pending ? 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30' : sync.connected ? 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30' : 'bg-white text-slate-500 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800'}`}>
           <svg viewBox="0 0 24 24" className={`h-4 w-4 ${sync.status === 'syncing' ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
             {sync.status === 'syncing' ? <path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5" /> : <path d="M7 18a4.5 4.5 0 0 1-.6-9A6 6 0 0 1 18 8a4 4 0 0 1 0 8H7z" />}
           </svg>
-          {sync.status === 'syncing' ? 'Syncing' : !sync.connected ? 'Connect Drive' : pending ? 'Tap to sync' : 'Synced'}
+          {t(sync.status === 'syncing' ? 'Syncing' : !sync.connected ? 'Connect Drive' : pending ? 'Tap to sync' : 'Synced')}
         </button>
       </header>
 
       <main key={tab} className="anim-fade px-4 pb-32">
-        {tab === 'home' && <Home data={data} catMap={catMap} onEdit={edit} onDelete={delTxn} onAddSalary={addSalary} goto={goto} />}
-        {tab === 'history' && <History data={data} catMap={catMap} onEdit={edit} onDelete={delTxn} />}
+        {tab === 'home' && <Home data={viewData} catMap={catMap} onEdit={edit} onDelete={delTxn} onAddSalary={addSalary} goto={goto}
+          update={update} addTxn={saveTxn} undoAdd={undoAdd} flash={flash} streak={streak} earned={earned} openPage={setPage}
+          onAdd={() => setSheet({ open: true, editing: null, type: 'expense' })} />}
+        {tab === 'history' && <History data={viewData} catMap={catMap} onEdit={edit} onDelete={delTxn} />}
         {tab === 'reports' && (
           <Suspense fallback={<div className="py-20 text-center text-sm text-slate-400">Loading reports…</div>}>
-            <Reports data={data} catMap={catMap} />
+            <Reports data={viewData} catMap={catMap} onReport={() => setPage('report')} />
           </Suspense>
         )}
         {tab === 'more' && <More data={data} update={update} sync={sync} onConnect={connect} onSync={() => doSync()} onDisconnect={disconnect} section={section} flash={flash}
           onBackupNow={backupNow} onListBackups={drive.listBackups} onRestoreBackup={restoreBackup} onClearAll={clearAll} onRestoreTxn={restoreTxn}
-          setTheme={(v) => update((d) => ({ ...d, settings: { ...d.settings, theme: v, updatedAt: now() } }))} />}
+          setTheme={(v) => update((d) => ({ ...d, settings: { ...d.settings, theme: v, updatedAt: now() } }))}
+          setLangPref={(v) => update((d) => ({ ...d, settings: { ...d.settings, lang: v, updatedAt: now() } }))} openPage={setPage} />}
       </main>
 
       <nav className="fixed inset-x-0 bottom-0 z-40 mx-auto max-w-md safe-bottom">
@@ -201,15 +234,23 @@ export default function App() {
           ) : (
             <button key={t.id} onClick={() => goto(t.id)} className={`flex w-16 flex-col items-center gap-0.5 rounded-2xl py-1 text-[11px] font-semibold transition active:scale-95 ${tab === t.id ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400'}`}>
               <svg viewBox="0 0 24 24" className={`h-6 w-6 transition ${tab === t.id ? '-translate-y-0.5' : ''}`} fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">{t.icon(tab === t.id)}</svg>
-              {t.label}
+              {tl(t.label)}
               <span className={`h-1 rounded-full bg-indigo-500 transition-all ${tab === t.id ? 'w-4 opacity-100' : 'w-0 opacity-0'}`} />
             </button>
           ))}
         </div>
       </nav>
 
-      <AddSheet open={sheet.open} editing={sheet.editing} presetType={sheet.type} data={data}
+      <AddSheet open={sheet.open} editing={sheet.editing} presetType={sheet.type} preset={sheet.preset} data={viewData} flash={flash} onSaveFav={saveFav}
         onClose={() => setSheet({ open: false, editing: null, type: null })} onSave={saveTxn} onDelete={delTxn} />
+
+      <Suspense fallback={null}>
+        {page === 'bills' && <BillsPage open {...feat} />}
+        {page === 'udhaar' && <UdhaarPage open {...feat} />}
+        {page === 'shopping' && <ShoppingPage open {...feat} />}
+        {page === 'report' && <ReportPage open {...feat} />}
+        {page === 'badges' && <BadgesSheet open onClose={() => setPage(null)} streak={streak} earned={earned} lang={lang} />}
+      </Suspense>
 
       {locked && <LockScreen onUnlock={() => setLocked(false)} />}
 

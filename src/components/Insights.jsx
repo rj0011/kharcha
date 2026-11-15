@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { t } from '../lib/i18n'
 import { addDays, cycleRange, daysBetween, inRange, money, parseYmd, sum, today, weekRange, ymd } from '../lib/store'
 
 const WEEKDAY = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
@@ -73,8 +74,8 @@ export default function Insights({ data, catMap }) {
   return (
     <div>
       <div className="mb-2 flex items-center justify-between px-1">
-        <h3 className="font-bold text-slate-900 dark:text-white">💡 Insights</h3>
-        <span className="text-[11px] text-slate-400">swipe →</span>
+        <h3 className="font-bold text-slate-900 dark:text-white">💡 {t('Insights')}</h3>
+        <span className="text-[11px] text-slate-400">{t('swipe →')}</span>
       </div>
       <div className="no-scrollbar -mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1">
         {list.map((x, i) => (

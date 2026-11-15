@@ -198,3 +198,26 @@ export async function dailyBackup(data, today) {
   localStorage.setItem('kharcha_last_backup', today)
   return true
 }
+
+// ---------- Bill photos in "Kharcha Receipts" folder ----------
+async function ensureNamedFolder(name, key) {
+  const cached = localStorage.getItem(key)
+  if (cached) return cached
+  const q = encodeURIComponent(`name='${name}' and mimeType='application/vnd.google-apps.folder' and trashed=false`)
+  let id = (await (await api(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id)`)).json()).files?.[0]?.id
+  if (!id) id = (await (await api('https://www.googleapis.com/drive/v3/files?fields=id', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, mimeType: 'application/vnd.google-apps.folder' }) })).json()).id
+  localStorage.setItem(key, id)
+  return id
+}
+export async function uploadPhoto(blob, name) {
+  if (!hasBackupScope()) throw new Error('no scope')
+  const folder = await ensureNamedFolder('Kharcha Receipts', 'kharcha_receipts_folder')
+  const form = new FormData()
+  form.append('metadata', new Blob([JSON.stringify({ name, parents: [folder] })], { type: 'application/json' }))
+  form.append('file', blob)
+  const r = await api('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', { method: 'POST', body: form })
+  return (await r.json()).id
+}
+export async function downloadPhoto(id) {
+  return (await api(`https://www.googleapis.com/drive/v3/files/${id}?alt=media`)).blob()
+}

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { t } from '../lib/i18n'
 import { Card, Chip, Empty } from './ui'
 import TxnRow from './TxnRow'
 import Calendar from './Calendar'
@@ -43,7 +44,7 @@ export default function History({ data, catMap, onEdit, onDelete }) {
   const exp = sum(list.filter((t) => t.type === 'expense'))
   const inc = sum(list.filter((t) => t.type === 'income'))
 
-  const toggle = <Seg value={view} onChange={setView} options={[{ value: 'list', label: '☰ List' }, { value: 'cal', label: '📅 Calendar' }]} />
+  const toggle = <Seg value={view} onChange={setView} options={[{ value: 'list', label: '☰ ' + t('List') }, { value: 'cal', label: '📅 ' + t('Calendar') }]} />
   if (view === 'cal') return <div className="space-y-3">{toggle}<Calendar data={data} catMap={catMap} onEdit={onEdit} onDelete={onDelete} /></div>
 
   return (
@@ -51,7 +52,7 @@ export default function History({ data, catMap, onEdit, onDelete }) {
       {toggle}
       <div className="flex gap-2 overflow-x-auto no-scrollbar">
         {[['today', 'Today'], ['week', 'This week'], ['month', 'This month'], ['all', 'All'], ['custom', 'Custom']].map(([v, l]) =>
-          <Chip key={v} active={period === v} onClick={() => setPeriod(v)}>{l}</Chip>)}
+          <Chip key={v} active={period === v} onClick={() => setPeriod(v)}>{t(l)}</Chip>)}
       </div>
       {period === 'custom' && (
         <div className="flex gap-2">
@@ -63,25 +64,25 @@ export default function History({ data, catMap, onEdit, onDelete }) {
         className="w-full rounded-2xl bg-white dark:bg-slate-900 px-4 py-3 text-sm dark:text-white outline-none ring-1 ring-slate-200 dark:ring-slate-800 focus:ring-2 focus:ring-indigo-500" />
       <div className="grid grid-cols-3 gap-2">
         <select value={type} onChange={(e) => setType(e.target.value)} className="rounded-2xl bg-white dark:bg-slate-900 px-3 py-2 text-sm dark:text-white ring-1 ring-slate-200 dark:ring-slate-800">
-          <option value="">All types</option><option value="expense">Expense</option><option value="income">Income</option>
+          <option value="">{t('All types')}</option><option value="expense">Expense</option><option value="income">Income</option>
         </select>
         <select value={cat} onChange={(e) => setCat(e.target.value)} className="rounded-2xl bg-white dark:bg-slate-900 px-3 py-2 text-sm dark:text-white ring-1 ring-slate-200 dark:ring-slate-800">
-          <option value="">All categories</option>
+          <option value="">{t('All categories')}</option>
           {data.categories.filter((c) => !c.deleted).map((c) => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
         </select>
         <select value={method} onChange={(e) => setMethod(e.target.value)} className="rounded-2xl bg-white dark:bg-slate-900 px-3 py-2 text-sm dark:text-white ring-1 ring-slate-200 dark:ring-slate-800">
-          <option value="">All methods</option>
+          <option value="">{t('All methods')}</option>
           {METHODS.map((m) => <option key={m.id} value={m.id}>{m.id}</option>)}
         </select>
       </div>
 
       <div className="grid grid-cols-2 gap-2">
-        <Card className="p-3"><div className="text-[11px] font-semibold uppercase text-slate-500">Spent</div><div className="text-lg font-extrabold text-rose-600 tabular-nums">{money(exp, true)}</div></Card>
-        <Card className="p-3"><div className="text-[11px] font-semibold uppercase text-slate-500">Received</div><div className="text-lg font-extrabold text-emerald-600 tabular-nums">{money(inc, true)}</div></Card>
+        <Card className="p-3"><div className="text-[11px] font-semibold uppercase text-slate-500">{t('Spent')}</div><div className="text-lg font-extrabold text-rose-600 tabular-nums">{money(exp, true)}</div></Card>
+        <Card className="p-3"><div className="text-[11px] font-semibold uppercase text-slate-500">{t('Received')}</div><div className="text-lg font-extrabold text-emerald-600 tabular-nums">{money(inc, true)}</div></Card>
       </div>
 
-      {groups.length > 0 && <p className="px-1 text-[11px] text-slate-400">Tip: swipe an entry left to edit or delete</p>}
-      {groups.length === 0 ? <Card><Empty icon="🔎" text="No entries found" /></Card> : groups.map((g) => {
+      {groups.length > 0 && <p className="px-1 text-[11px] text-slate-400">{t('Tip: swipe an entry left to edit or delete')}</p>}
+      {groups.length === 0 ? <Card><Empty icon="🔎" text={t('No entries found')} /></Card> : groups.map((g) => {
         const dayExp = sum(g.items.filter((t) => t.type === 'expense'))
         return (
           <Card key={g.date} className="overflow-hidden">

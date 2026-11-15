@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { t } from '../lib/i18n'
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar as RBar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts'
 import { Card, Seg, Bar, Empty } from './ui'
 import { today, ymd, parseYmd, addDays, weekRange, cycleRange, inRange, sum, money, shortMoney, fmtDate, daysBetween, METHODS } from '../lib/store'
@@ -18,7 +19,7 @@ function rangeFor(mode, off, salaryDay) {
 
 const tip = { contentStyle: { borderRadius: 14, border: 'none', boxShadow: '0 8px 24px rgba(0,0,0,.15)', fontSize: 12 }, cursor: { fill: 'rgba(99,102,241,.08)' } }
 
-export default function Reports({ data, catMap }) {
+export default function Reports({ data, catMap, onReport }) {
   const [mode, setMode] = useState('monthly')
   const [off, setOff] = useState(0)
   const sd = data.settings.salaryDay
@@ -69,42 +70,47 @@ export default function Reports({ data, catMap }) {
 
   return (
     <div className="space-y-4">
-      <Seg value={mode} onChange={(v) => { setMode(v); setOff(0) }} options={[{ value: 'daily', label: 'Daily' }, { value: 'weekly', label: 'Weekly' }, { value: 'monthly', label: 'Monthly' }, { value: 'yearly', label: 'Yearly' }]} />
+      <button onClick={onReport} className="flex w-full items-center gap-3 rounded-3xl bg-gradient-to-r from-indigo-600 to-fuchsia-600 p-4 text-left text-white shadow-lg shadow-indigo-500/30 active:scale-[.99]">
+        <span className="text-3xl">📄</span>
+        <span className="flex-1"><span className="block font-bold">{t('Monthly PDF report')}</span><span className="text-xs text-white/80">Download or share on WhatsApp</span></span>
+        <span className="text-xl">›</span>
+      </button>
+      <Seg value={mode} onChange={(v) => { setMode(v); setOff(0) }} options={[{ value: 'daily', label: t('Daily') }, { value: 'weekly', label: t('Weekly') }, { value: 'monthly', label: t('Monthly') }, { value: 'yearly', label: t('Yearly') }]} />
 
       <div className="flex items-center justify-between">
         <button onClick={() => setOff(off - 1)} className="grid h-10 w-10 place-items-center rounded-full bg-white dark:bg-slate-900 text-xl dark:text-white ring-1 ring-slate-200 dark:ring-slate-800">‹</button>
         <div className="text-center">
           <div className="font-bold text-slate-900 dark:text-white">{r.label}</div>
-          {off !== 0 && <button onClick={() => setOff(0)} className="text-xs font-semibold text-indigo-600">Back to current</button>}
+          {off !== 0 && <button onClick={() => setOff(0)} className="text-xs font-semibold text-indigo-600">{t('Back to current')}</button>}
         </div>
         <button disabled={off >= 0} onClick={() => setOff(off + 1)} className="grid h-10 w-10 place-items-center rounded-full bg-white dark:bg-slate-900 text-xl dark:text-white ring-1 ring-slate-200 dark:ring-slate-800 disabled:opacity-30">›</button>
       </div>
 
       <div className="grid grid-cols-2 gap-2">
         <Card className="p-4">
-          <div className="text-[11px] font-semibold uppercase text-slate-500">Spent</div>
+          <div className="text-[11px] font-semibold uppercase text-slate-500">{t('Spent')}</div>
           <div className="text-2xl font-extrabold text-rose-600 tabular-nums">{money(st.spent)}</div>
           {change !== null && <div className={`text-xs font-semibold ${change > 0 ? 'text-rose-500' : 'text-emerald-600'}`}>{change > 0 ? '▲' : '▼'} {Math.abs(change).toFixed(0)}% vs previous</div>}
         </Card>
         <Card className="p-4">
-          <div className="text-[11px] font-semibold uppercase text-slate-500">{saved >= 0 ? 'Saved' : 'Overspent'}</div>
+          <div className="text-[11px] font-semibold uppercase text-slate-500">{t(saved >= 0 ? 'Saved' : 'Overspent')}</div>
           <div className={`text-2xl font-extrabold tabular-nums ${saved >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{money(Math.abs(saved))}</div>
           <div className="text-xs text-slate-500">Income {money(st.inc)}</div>
         </Card>
         <Card className="p-4">
-          <div className="text-[11px] font-semibold uppercase text-slate-500">Avg / day</div>
+          <div className="text-[11px] font-semibold uppercase text-slate-500">{t('Avg / day')}</div>
           <div className="text-lg font-extrabold text-slate-900 dark:text-white tabular-nums">{money(st.avg)}</div>
           <div className="text-xs text-slate-500">{st.count} expenses</div>
         </Card>
         <Card className="p-4">
-          <div className="text-[11px] font-semibold uppercase text-slate-500">Biggest</div>
+          <div className="text-[11px] font-semibold uppercase text-slate-500">{t('Biggest')}</div>
           <div className="text-lg font-extrabold text-slate-900 dark:text-white tabular-nums">{st.biggest ? money(st.biggest.amount) : '—'}</div>
           <div className="truncate text-xs text-slate-500">{st.biggest ? (st.biggest.note || catMap[st.biggest.catId]?.name) : 'No expense'}</div>
         </Card>
       </div>
 
       <Card className="p-4">
-        <h3 className="mb-2 font-bold text-slate-900 dark:text-white">Spending trend</h3>
+        <h3 className="mb-2 font-bold text-slate-900 dark:text-white">{t('Spending trend')}</h3>
         <div className="h-48">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={st.trend} margin={{ left: -18, right: 4, top: 8 }}>
@@ -121,7 +127,7 @@ export default function Reports({ data, catMap }) {
       </Card>
 
       <Card className="p-4">
-        <h3 className="mb-2 font-bold text-slate-900 dark:text-white">Where money went</h3>
+        <h3 className="mb-2 font-bold text-slate-900 dark:text-white">{t('Where money went')}</h3>
         {st.pie.length === 0 ? <Empty icon="🥧" text="No expenses in this period" /> : (
           <>
             <div className="relative h-52">
@@ -153,7 +159,7 @@ export default function Reports({ data, catMap }) {
       </Card>
 
       <Card className="p-4">
-        <h3 className="mb-3 font-bold text-slate-900 dark:text-white">Paid via</h3>
+        <h3 className="mb-3 font-bold text-slate-900 dark:text-white">{t('Paid via')}</h3>
         {st.spent === 0 ? <Empty icon="💳" text="Nothing yet" /> : (
           <div className="space-y-2.5">
             {METHODS.filter((m) => st.byMethod[m.id]).map((m) => (
@@ -168,7 +174,7 @@ export default function Reports({ data, catMap }) {
 
       {mode === 'monthly' && (
         <Card className="p-4">
-          <h3 className="mb-2 font-bold text-slate-900 dark:text-white">Last 6 months</h3>
+          <h3 className="mb-2 font-bold text-slate-900 dark:text-white">{t('Last 6 months')}</h3>
           <div className="h-48">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={st.hist} margin={{ left: -18, right: 4, top: 8 }}>

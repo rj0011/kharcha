@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { t } from '../lib/i18n'
 import { Card, Empty } from './ui'
 import TxnRow from './TxnRow'
 import { ymd, today, money, shortMoney, sum, dayLabel } from '../lib/store'
@@ -36,7 +37,7 @@ export default function Calendar({ data, catMap, onEdit, onDelete }) {
           <button onClick={() => shift(-1)} className="grid h-9 w-9 place-items-center rounded-full bg-slate-100 text-lg dark:bg-slate-800 dark:text-white">‹</button>
           <div className="text-center">
             <div className="font-bold text-slate-900 dark:text-white">{new Date(y, m - 1, 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}</div>
-            <div className="text-xs text-slate-500">Spent {money(total)}</div>
+            <div className="text-xs text-slate-500">{t('Spent')} {money(total)}</div>
           </div>
           <button onClick={() => shift(1)} disabled={ym >= td.slice(0, 7)} className="grid h-9 w-9 place-items-center rounded-full bg-slate-100 text-lg disabled:opacity-30 dark:bg-slate-800 dark:text-white">›</button>
         </div>
@@ -68,7 +69,7 @@ export default function Calendar({ data, catMap, onEdit, onDelete }) {
           <span>{dayLabel(sel)}</span>
           <span className="tabular-nums">−{money(sum(dayList.filter((t) => t.type === 'expense')), true)}</span>
         </div>
-        {dayList.length === 0 ? <Empty icon="📅" text="No entries this day" /> : (
+        {dayList.length === 0 ? <Empty icon="📅" text={t('No entries this day')} /> : (
           <div className="divide-y divide-slate-100 dark:divide-slate-800">
             {dayList.map((t) => <TxnRow key={t.id} t={t} cat={catMap[t.catId]} onClick={() => onEdit(t)} onDelete={onDelete} />)}
           </div>

@@ -45,10 +45,12 @@ export function defaultData() {
       defaultMethod: 'Paytm',
       theme: 'system',
       autoSync: true,
+      lang: 'en',
       updatedAt: 0,
     },
     categories: defCats.map(([id, name, icon, kind], i) => ({ id, name, icon, kind, color: COLORS[i % COLORS.length], budget: 0, updatedAt: 0 })),
     txns: [],
+    bills: [], loans: [], shopping: [], favs: [], noSpend: [],
     _t: t,
   }
 }
@@ -59,7 +61,9 @@ export function loadData() {
     if (!raw) return defaultData()
     const d = JSON.parse(raw)
     const def = defaultData()
-    return { ...def, ...d, settings: { ...def.settings, ...d.settings } }
+    const out = { ...def, ...d, settings: { ...def.settings, ...d.settings } }
+    for (const k of LISTS) if (!Array.isArray(out[k])) out[k] = []
+    return out
   } catch {
     return defaultData()
   }
@@ -68,6 +72,8 @@ export function loadData() {
 export function saveData(d) {
   try { localStorage.setItem(KEY, JSON.stringify(d)) } catch { /* storage full */ }
 }
+
+export const LISTS = ['categories', 'txns', 'bills', 'loans', 'shopping', 'favs', 'noSpend']
 
 // Merge local + remote (Drive) — newest updatedAt wins per item; deletes are kept as tombstones
 export function mergeData(a, b) {
@@ -81,12 +87,12 @@ export function mergeData(a, b) {
     }
     return [...m.values()]
   }
-  return {
+  const out = {
     ...a,
     settings: (b.settings?.updatedAt || 0) > (a.settings?.updatedAt || 0) ? { ...a.settings, ...b.settings } : a.settings,
-    categories: mergeList(a.categories, b.categories),
-    txns: mergeList(a.txns, b.txns),
   }
+  for (const k of LISTS) out[k] = mergeList(a[k], b[k])
+  return out
 }
 
 // ---------- Date helpers ----------

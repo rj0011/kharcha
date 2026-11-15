@@ -12,7 +12,7 @@ if ('serviceWorker' in navigator) {
   let reloaded = false
   navigator.serviceWorker.addEventListener('controllerchange', () => { if (!reloaded) { reloaded = true; location.reload() } })
 }
-window.APP_VERSION = '1.4'
+window.APP_VERSION = '1.5'
 
 // Capture Chrome's install prompt so the app can show its own "Install" button
 window.addEventListener('beforeinstallprompt', (e) => {

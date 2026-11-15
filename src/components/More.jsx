@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { t } from '../lib/i18n'
 import { Card, Sheet, Input, Btn, Seg, Chip } from './ui'
 import { COLORS, METHODS, uid, now, money, toCSV, download, today, mergeData } from '../lib/store'
 import { getClientId, setClientId } from '../lib/drive'
@@ -48,7 +49,7 @@ function CatEditor({ open, onClose, cat, onSave, onDelete }) {
   )
 }
 
-export default function More({ data, update, sync, onConnect, onSync, onDisconnect, section, setTheme, flash, onBackupNow, onListBackups, onRestoreBackup, onClearAll, onRestoreTxn }) {
+export default function More({ data, update, sync, onConnect, onSync, onDisconnect, section, setTheme, setLangPref, openPage, flash, onBackupNow, onListBackups, onRestoreBackup, onClearAll, onRestoreTxn }) {
   const s = data.settings
   const [salaryOpen, setSalaryOpen] = useState(false)
   const [catsOpen, setCatsOpen] = useState(section === 'cats')
@@ -84,15 +85,24 @@ export default function More({ data, update, sync, onConnect, onSync, onDisconne
   return (
     <div className="space-y-4">
       <Card className="overflow-hidden divide-y divide-slate-100 dark:divide-slate-800">
-        <Row icon="💼" title="Salary & balance" sub={`${money(s.salary)} on day ${s.salaryDay} · Opening ${money(s.openingBalance)}`} onClick={() => { setForm(s); setSalaryOpen(true) }} />
-        <Row icon="🗂️" title="Categories & budgets" sub={`${liveCats.length} categories`} onClick={() => setCatsOpen(true)} />
-        <Row icon="☁️" title="Google Drive sync" sub={syncSub} onClick={() => setDriveOpen(true)}
+        <Row icon="💼" title={t('Salary & balance')} sub={`${money(s.salary)} on day ${s.salaryDay} · Opening ${money(s.openingBalance)}`} onClick={() => { setForm(s); setSalaryOpen(true) }} />
+        <Row icon="🗂️" title={t('Categories & budgets')} sub={`${liveCats.length} categories`} onClick={() => setCatsOpen(true)} />
+        <Row icon="☁️" title={t('Google Drive sync')} sub={syncSub} onClick={() => setDriveOpen(true)}
           right={<span className={`h-2.5 w-2.5 rounded-full ${sync.connected ? (sync.error ? 'bg-amber-500' : 'bg-emerald-500') : 'bg-slate-300'}`} />} />
-        <Row icon="🔒" title="App lock" sub={getLock().enabled ? (getLock().bioId ? 'Pattern + fingerprint ON' : 'Pattern ON') : 'Off – add pattern / fingerprint'} onClick={() => setLockOpen(true)}
+        <Row icon="🔒" title={t('App lock')} sub={getLock().enabled ? (getLock().bioId ? 'Pattern + fingerprint ON' : 'Pattern ON') : 'Off – add pattern / fingerprint'} onClick={() => setLockOpen(true)}
           right={<span className={`h-2.5 w-2.5 rounded-full ${getLock().enabled ? 'bg-emerald-500' : 'bg-slate-300'}`} />} />
       </Card>
-      <Card className="overflow-hidden">
-        <Row icon="🗑️" title="Recently deleted" sub={deleted.length ? `${deleted.length} entries · restore within 30 days` : 'Nothing deleted in last 30 days'} onClick={() => setBinOpen(true)} />
+      <Card className="overflow-hidden divide-y divide-slate-100 dark:divide-slate-800">
+        <Row icon="⏰" title={t('Daily reminder')} sub="Add a 9 PM daily reminder in Google Calendar" onClick={() => {
+          const d = new Date(); d.setHours(21, 0, 0, 0); if (d < new Date()) d.setDate(d.getDate() + 1)
+          const f = (x) => x.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '')
+          const end = new Date(d.getTime() + 10 * 60000)
+          const u = 'https://calendar.google.com/calendar/render?action=TEMPLATE&text=' + encodeURIComponent('💰 Kharcha – add today\'s expenses') +
+            '&details=' + encodeURIComponent('Open Kharcha: https://rj0011.github.io/kharcha/') + '&dates=' + f(d) + '/' + f(end) + '&recur=' + encodeURIComponent('RRULE:FREQ=DAILY')
+          window.open(u, '_blank')
+        }} />
+        <Row icon="🏅" title={t('Badges')} sub="Streaks & achievements" onClick={() => openPage('badges')} />
+        <Row icon="🗑️" title={t('Recently deleted')} sub={deleted.length ? `${deleted.length} entries · restore within 30 days` : 'Nothing deleted in last 30 days'} onClick={() => setBinOpen(true)} />
       </Card>
       <Sheet open={binOpen} onClose={() => setBinOpen(false)} title="Recently deleted">
         {deleted.length === 0 ? <p className="py-8 text-center text-sm text-slate-400">Nothing here 🎉</p> : (
@@ -113,20 +123,22 @@ export default function More({ data, update, sync, onConnect, onSync, onDisconne
       <LockSettings open={lockOpen} onClose={() => setLockOpen(false)} flash={flash || (() => {})} />
 
       <Card className="p-4">
-        <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Appearance</div>
+        <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">🌐 {t('Language')}</div>
+        <Seg value={s.lang || 'en'} onChange={setLangPref} options={[{ value: 'en', label: 'English' }, { value: 'hi', label: 'हिंदी' }]} />
+        <div className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wide text-slate-500">{t('Appearance')}</div>
         <Seg value={s.theme} onChange={setTheme} options={[{ value: 'light', label: '☀️ Light' }, { value: 'dark', label: '🌙 Dark' }, { value: 'system', label: '📱 Auto' }]} />
-        <div className="mt-4 mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Default payment method</div>
+        <div className="mt-4 mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">{t('Default payment method')}</div>
         <div className="flex gap-2 overflow-x-auto no-scrollbar">
           {METHODS.map((m) => <Chip key={m.id} active={s.defaultMethod === m.id} onClick={() => update((d) => ({ ...d, settings: { ...d.settings, defaultMethod: m.id, updatedAt: now() } }))}>{m.icon} {m.id}</Chip>)}
         </div>
       </Card>
 
       <Card className="overflow-hidden divide-y divide-slate-100 dark:divide-slate-800">
-        <Row icon="📊" title="Export to Excel (CSV)" sub="All entries – opens in Excel / Sheets" onClick={() => download(`kharcha-${today()}.csv`, toCSV(data.txns.filter((t) => !t.deleted), data.categories), 'text/csv')} />
-        <Row icon="💾" title="Download backup (JSON)" sub="Full offline backup file" onClick={() => download(`kharcha-backup-${today()}.json`, JSON.stringify(data), 'application/json')} />
-        <Row icon="📥" title="Restore backup" sub="Merge a JSON backup file" onClick={() => fileRef.current?.click()} />
+        <Row icon="📊" title={t('Export to Excel (CSV)')} sub="All entries – opens in Excel / Sheets" onClick={() => download(`kharcha-${today()}.csv`, toCSV(data.txns.filter((t) => !t.deleted), data.categories), 'text/csv')} />
+        <Row icon="💾" title={t('Download backup (JSON)')} sub="Full offline backup file" onClick={() => download(`kharcha-backup-${today()}.json`, JSON.stringify(data), 'application/json')} />
+        <Row icon="📥" title={t('Restore backup')} sub="Merge a JSON backup file" onClick={() => fileRef.current?.click()} />
         <input ref={fileRef} type="file" accept=".json,application/json" className="hidden" onChange={importJson} />
-        <Row icon="🧹" title="Clear all entries" sub="Backup is saved first, then entries are cleared" onClick={() => {
+        <Row icon="🧹" title={t('Clear all entries')} sub="Backup is saved first, then entries are cleared" onClick={() => {
           if (confirm('Delete ALL entries?\nA backup copy is saved first (Drive or downloaded file).') && confirm('Are you sure?')) onClearAll()
         }} />
       </Card>

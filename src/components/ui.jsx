@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { t } from '../lib/i18n'
 import { money } from '../lib/store'
 
 export function Card({ className = '', children, ...p }) {
@@ -127,11 +128,11 @@ export function Gauge({ spent, income }) {
         <circle cx={nx} cy={ny} r="7.5" fill="white" stroke={color} strokeWidth="4" style={{ transition: 'all 1s cubic-bezier(.2,.8,.2,1)' }} />
       </svg>
       <div className="absolute inset-x-0 top-[44%] text-center">
-        <div className="text-[11px] font-semibold uppercase tracking-widest text-white/70">Left this month</div>
+        <div className="text-[11px] font-semibold uppercase tracking-widest text-white/70">{t('Left this month')}</div>
         <div className={`text-3xl font-extrabold tabular-nums ${left < 0 ? 'text-rose-200' : 'text-white'}`}>{money(left)}</div>
       </div>
       <div className="-mt-1 flex justify-between px-2 text-[11px] font-medium text-white/70">
-        <span>₹0</span><span>{Math.round(pct * 100)}% used</span><span>{money(income)}</span>
+        <span>₹0</span><span>{Math.round(pct * 100)}% {t('used')}</span><span>{money(income)}</span>
       </div>
     </div>
   )

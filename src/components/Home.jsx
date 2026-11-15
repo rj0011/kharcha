@@ -3,6 +3,10 @@ import { Card, Gauge, Bar, Btn, Empty, useCount } from './ui'
 import TxnRow from './TxnRow'
 import InstallCard from './InstallCard'
 import Insights from './Insights'
+import QuickAdd from '../features/QuickAdd'
+import { UpcomingBills } from '../features/billsCore'
+import { StreakCard } from '../features/Streak'
+import { t } from '../lib/i18n'
 import { cycleRange, weekRange, today, inRange, sum, money, fmtDate, daysBetween, parseYmd } from '../lib/store'
 
 function Stat({ label, value, sub, icon, tone = 'slate' }) {
@@ -17,7 +21,7 @@ function Stat({ label, value, sub, icon, tone = 'slate' }) {
   )
 }
 
-export default function Home({ data, catMap, onEdit, onDelete, onAddSalary, goto }) {
+export default function Home({ data, catMap, onEdit, onDelete, onAddSalary, goto, update, addTxn, undoAdd, flash, streak, earned, openPage, onAdd }) {
   const s = data.settings
   const live = useMemo(() => data.txns.filter((t) => !t.deleted), [data.txns])
   const cyc = cycleRange(new Date(), s.salaryDay)
@@ -51,7 +55,8 @@ export default function Home({ data, catMap, onEdit, onDelete, onAddSalary, goto
   const budgets = data.categories.filter((c) => !c.deleted && c.kind === 'expense' && (c.budget > 0 || m.byCat[c.id]))
     .sort((a, b) => (m.byCat[b.id] || 0) - (m.byCat[a.id] || 0)).slice(0, 6)
   const hr = new Date().getHours()
-  const greet = hr < 12 ? 'Good morning' : hr < 17 ? 'Good afternoon' : 'Good evening'
+  const greet = t(hr < 12 ? 'Good morning' : hr < 17 ? 'Good afternoon' : 'Good evening')
+  const noEntryToday = !data.txns.some((x) => !x.deleted && x.date === td) && !(data.noSpend || []).some((n) => n.id === td && !n.deleted)
 
   return (
     <div className="space-y-4">
@@ -62,10 +67,10 @@ export default function Home({ data, catMap, onEdit, onDelete, onAddSalary, goto
         <div className="relative flex items-start justify-between">
           <div>
             <div className="text-sm text-white/80">{greet}{s.name ? ', ' + s.name : ''} 👋</div>
-            <div className="text-xs text-white/60">Cycle {fmtDate(cyc.start)} – {fmtDate(cyc.end)} · {m.daysLeft} days left</div>
+            <div className="text-xs text-white/60">{fmtDate(cyc.start)} – {fmtDate(cyc.end)} · {m.daysLeft} {t('days left')}</div>
           </div>
           <div className="text-right">
-            <div className="text-[10px] uppercase tracking-widest text-white/60">Wallet balance</div>
+            <div className="text-[10px] uppercase tracking-widest text-white/60">{t('Wallet balance')}</div>
             <div className="font-bold tabular-nums">{money(m.wallet)}</div>
           </div>
         </div>
@@ -73,9 +78,9 @@ export default function Home({ data, catMap, onEdit, onDelete, onAddSalary, goto
           <Gauge spent={m.spentCycle} income={m.budgetBase} />
         </div>
         <div className="relative mt-3 grid grid-cols-3 gap-2 text-center">
-          <div className="rounded-2xl bg-white/15 p-2"><div className="text-[10px] uppercase text-white/70">Income</div><div className="text-sm font-bold">{money(m.incomeCycle)}</div></div>
-          <div className="rounded-2xl bg-white/15 p-2"><div className="text-[10px] uppercase text-white/70">Spent</div><div className="text-sm font-bold">{money(m.spentCycle)}</div></div>
-          <div className="rounded-2xl bg-white/15 p-2"><div className="text-[10px] uppercase text-white/70">Safe / day</div><div className="text-sm font-bold">{money(m.perDay)}</div></div>
+          <div className="rounded-2xl bg-white/15 p-2"><div className="text-[10px] uppercase text-white/70">{t('Income')}</div><div className="text-sm font-bold">{money(m.incomeCycle)}</div></div>
+          <div className="rounded-2xl bg-white/15 p-2"><div className="text-[10px] uppercase text-white/70">{t('Spent')}</div><div className="text-sm font-bold">{money(m.spentCycle)}</div></div>
+          <div className="rounded-2xl bg-white/15 p-2"><div className="text-[10px] uppercase text-white/70">{t('Safe / day')}</div><div className="text-sm font-bold">{money(m.perDay)}</div></div>
         </div>
       </div>
 
@@ -83,29 +88,52 @@ export default function Home({ data, catMap, onEdit, onDelete, onAddSalary, goto
         <Card className="flex items-center gap-3 p-4">
           <div className="grid h-11 w-11 place-items-center rounded-2xl bg-emerald-100 text-2xl dark:bg-emerald-500/15">💼</div>
           <div className="flex-1">
-            <div className="font-semibold text-slate-800 dark:text-slate-100">Salary credited?</div>
+            <div className="font-semibold text-slate-800 dark:text-slate-100">{t('Salary credited?')}</div>
             <div className="text-xs text-slate-500">{+s.salary > 0 ? `Add ${money(s.salary)} for this cycle in one tap` : 'Set your salary in More → Salary'}</div>
           </div>
           {+s.salary > 0
-            ? <Btn variant="soft" className="py-2 text-sm" onClick={onAddSalary}>+ Add</Btn>
-            : <Btn variant="soft" className="py-2 text-sm" onClick={() => goto('more')}>Set</Btn>}
+            ? <Btn variant="soft" className="py-2 text-sm" onClick={onAddSalary}>+ {t('Add')}</Btn>
+            : <Btn variant="soft" className="py-2 text-sm" onClick={() => goto('more')}>{t('Set')}</Btn>}
         </Card>
       )}
 
-      <div className="grid grid-cols-3 gap-2">
-        <Stat icon="☀️" label="Today" value={m.today} tone="rose" />
-        <Stat icon="🗓️" label="Week" value={m.week} />
-        <Stat icon="📊" label="Avg/day" value={m.avgDay} />
+      {noEntryToday && new Date().getHours() >= 20 && (
+        <Card className="flex items-center gap-3 border-l-4 border-indigo-500 p-4">
+          <span className="text-2xl">⏰</span>
+          <div className="flex-1 text-sm font-semibold text-slate-800 dark:text-slate-100">{t("Did you add today's expenses?")}</div>
+          <Btn variant="soft" className="py-2 text-sm" onClick={onAdd}>{t('Add now')}</Btn>
+        </Card>
+      )}
+
+      <UpcomingBills data={data} catMap={catMap} update={update} addTxn={addTxn} flash={flash} onOpen={() => openPage('bills')} />
+
+      <QuickAdd data={data} catMap={catMap} update={update} addTxn={addTxn} undoAdd={undoAdd} flash={flash} />
+
+      <div className="grid grid-cols-4 gap-2">
+        {[['bills', '🧾', 'Bills'], ['udhaar', '🤝', 'Udhaar'], ['shopping', '🛒', 'Shopping'], ['report', '📊', 'Report']].map(([id, ic, label]) => (
+          <button key={id} onClick={() => openPage(id)} className="flex flex-col items-center gap-1 rounded-3xl bg-white py-3 shadow-sm ring-1 ring-slate-200/60 transition active:scale-95 dark:bg-slate-900 dark:ring-slate-800">
+            <span className="text-2xl">{ic}</span>
+            <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">{t(label)}</span>
+          </button>
+        ))}
       </div>
+
+      <div className="grid grid-cols-3 gap-2">
+        <Stat icon="☀️" label={t('Today')} value={m.today} tone="rose" />
+        <Stat icon="🗓️" label={t('Week')} value={m.week} />
+        <Stat icon="📊" label={t('Avg/day')} value={m.avgDay} />
+      </div>
+
+      <StreakCard data={data} update={update} streak={streak} earned={earned} onOpen={() => openPage('badges')} />
 
       <Insights data={data} catMap={catMap} />
 
       <Card className="p-4">
         <div className="mb-3 flex items-center justify-between">
-          <h3 className="font-bold text-slate-900 dark:text-white">Category budgets</h3>
-          <button onClick={() => goto('more', 'cats')} className="text-xs font-semibold text-indigo-600">Manage</button>
+          <h3 className="font-bold text-slate-900 dark:text-white">{t('Category budgets')}</h3>
+          <button onClick={() => goto('more', 'cats')} className="text-xs font-semibold text-indigo-600">{t('Manage')}</button>
         </div>
-        {budgets.length === 0 ? <Empty icon="🎯" text="No spending yet this cycle" /> : (
+        {budgets.length === 0 ? <Empty icon="🎯" text={t('No spending yet this cycle')} /> : (
           <div className="space-y-3">
             {budgets.map((c) => (
               <div key={c.id}>
@@ -122,10 +150,10 @@ export default function Home({ data, catMap, onEdit, onDelete, onAddSalary, goto
 
       <Card className="overflow-hidden">
         <div className="flex items-center justify-between px-4 pt-4">
-          <h3 className="font-bold text-slate-900 dark:text-white">Recent</h3>
-          <button onClick={() => goto('history')} className="text-xs font-semibold text-indigo-600">See all</button>
+          <h3 className="font-bold text-slate-900 dark:text-white">{t('Recent')}</h3>
+          <button onClick={() => goto('history')} className="text-xs font-semibold text-indigo-600">{t('See all')}</button>
         </div>
-        {recent.length === 0 ? <Empty text="Tap + to add your first expense" /> : (
+        {recent.length === 0 ? <Empty text={t('Tap + to add your first expense')} /> : (
           <div className="divide-y divide-slate-100 dark:divide-slate-800">
             {recent.map((t) => (
               <div key={t.id}>
